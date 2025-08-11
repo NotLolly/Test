@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sky NM ToD Tracker</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #1e1e1e;
+        color: #fff;
+        margin: 0;
+        padding: 20px;
+    }
+    h1 {
+        text-align: center;
+    }
+    .timer {
+        background-color: #333;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .controls {
+        display: flex;
+        gap: 5px;
+    }
+    button {
+        padding: 5px 10px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    .reset-btn {
+        background-color: #ff4d4d;
+        color: white;
+    }
+    .calendar-btn {
+        background-color: #4cafef;
+        color: white;
+    }
+    .add-btn {
+        background-color: #4caf50;
+        color: white;
+    }
+    .time {
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+</style>
+</head>
+<body>
+
+<h1>Sky NM ToD Tracker</h1>
+
+<div id="timers"></div>
+
+<script>
+const nms = ["Byakko", "Genbu", "Seiryu", "Suzaku"];
+const respawnHours = 3;
+
+function createTimer(name) {
+    const container = document.createElement("div");
+    container.className = "timer";
+
+    const label = document.createElement("div");
+    label.textContent = name;
+
+    const timeDisplay = document.createElement("div");
+    timeDisplay.className = "time";
+    timeDisplay.textContent = "--:--:--";
+
+    const controls = document.createElement("div");
+    controls.className = "controls";
+
+    const calendarBtn = document.createElement("button");
+    calendarBtn.innerHTML = "📅";
+    calendarBtn.className = "calendar-btn";
+    calendarBtn.onclick = () => {
+        const dateInput = document.createElement("input");
+        dateInput.type = "datetime-local";
+        dateInput.onchange = () => {
+            setTimer(name, new Date(dateInput.value));
+            document.body.removeChild(dateInput);
+        };
+        dateInput.style.position = "absolute";
+        dateInput.style.left = "-9999px";
+        document.body.appendChild(dateInput);
+        dateInput.click();
+    };
+
+    const addBtn = document.createElement("button");
+    addBtn.textContent = "+";
+    addBtn.className = "add-btn";
+    addBtn.onclick = () => setTimer(name, new Date());
+
+    const resetBtn = document.createElement("button");
+    resetBtn.innerHTML = "⟳";
+    resetBtn.className = "reset-btn";
+    resetBtn.onclick = () => resetTimer(name);
+
+    controls.appendChild(calendarBtn);
+    controls.appendChild(addBtn);
+    controls.appendChild(resetBtn);
+
+    container.appendChild(label);
+    container.appendChild(timeDisplay);
+    container.appendChild(controls);
+
+    document.getElementById("timers").appendChild(container);
+
+    return { name, timeDisplay, endTime: null };
+}
+
+const timers = nms.map(createTimer);
+
+function setTimer(name, startTime) {
+    const timer = timers.find(t => t.name === name);
+    timer.endTime = new Date(startTime.getTime() + respawnHours * 60 * 60 * 1000);
+}
+
+function resetTimer(name) {
+    const timer = timers.find(t => t.name === name);
+    timer.endTime = null;
+    timer.timeDisplay.textContent = "--:--:--";
+}
+
+function updateTimers() {
+    const now = new Date();
+    timers.forEach(timer => {
+        if (timer.endTime) {
+            const diff = timer.endTime - now;
+            if (diff <= 0) {
+                timer.timeDisplay.textContent = "Respawn!";
+                timer.endTime = null;
+            } else {
+                const hours = String(Math.floor(diff / 3600000)).padStart(2, "0");
+                const minutes = String(Math.floor((diff % 3600000) / 60000)).padStart(2, "0");
+                const seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, "0");
+                timer.timeDisplay.textContent = `${hours}:${minutes}:${seconds}`;
+            }
+        }
+    });
+}
+
+setInterval(updateTimers, 1000);
+</script>
+
+</body>
+</html>
