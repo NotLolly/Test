@@ -1,152 +1,368 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sky NM ToD Tracker</title>
+<title>SKY TOD TRACKER</title>
+<!-- Import Orbitron font from Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        background-color: #1e1e1e;
-        color: #fff;
-        margin: 0;
-        padding: 20px;
-    }
-    h1 {
-        text-align: center;
-    }
-    .timer {
-        background-color: #333;
-        padding: 10px;
-        margin: 10px 0;
-        border-radius: 8px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .controls {
-        display: flex;
-        gap: 5px;
-    }
-    button {
-        padding: 5px 10px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-    .reset-btn {
-        background-color: #ff4d4d;
-        color: white;
-    }
-    .calendar-btn {
-        background-color: #4cafef;
-        color: white;
-    }
-    .add-btn {
-        background-color: #4caf50;
-        color: white;
-    }
-    .time {
-        font-size: 1.2em;
-        font-weight: bold;
-    }
+  body {
+    background-color: #1e1e1e;
+    color: white;
+    font-family: 'Orbitron', Arial, sans-serif;
+    margin: 0;
+  }
+  header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    position: relative;
+  }
+  /* Removed resetBtn styles since the button is removed */
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+    padding: 10px;
+  }
+  .card {
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 10px;
+    transition: background-color 0.3s ease;
+  }
+  .card h2 {
+    margin: 0;
+  }
+  .countdown {
+    font-size: 1.2em;
+    font-weight: bold;
+  }
+  .controls {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    gap: 5px;
+  }
+  button {
+    background: none;
+    border: 1px solid #555;
+    color: white;
+    padding: 5px;
+    cursor: pointer;
+    border-radius: 5px;
+    flex: 1;
+  }
+  button:hover {
+    background: #333;
+  }
+  .icon-btn {
+    font-size: 1.2em;
+    flex: 0 0 40px;
+  }
+
+  /* Popup modal styles */
+  #timeModalOverlay {
+    display: none;
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.7);
+    z-index: 999;
+    justify-content: center;
+    align-items: center;
+  }
+  #timeModal {
+    background: #222;
+    padding: 20px;
+    border-radius: 8px;
+    width: 280px;
+    box-shadow: 0 0 10px #000;
+    text-align: center;
+  }
+  #timeModal h3 {
+    margin-top: 0;
+  }
+  #timeInputText {
+    font-size: 1.2em;
+    width: 100%;
+    padding: 5px;
+    margin-top: 10px;
+    border-radius: 5px;
+    border: 1px solid #555;
+    background: #333;
+    color: white;
+    text-align: center;
+  }
+  #timeModal button {
+    margin-top: 15px;
+    width: 100px;
+  }
+  #timeModal .btn-group {
+    display: flex;
+    justify-content: space-around;
+  }
 </style>
 </head>
 <body>
 
-<h1>Sky NM ToD Tracker</h1>
+<header>
+  <h1>SKY TOD TRACKER</h1>
+  <!-- Removed main reset button -->
+</header>
 
-<div id="timers"></div>
+<audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+
+<div class="grid" id="nmGrid"></div>
+
+<!-- Time Entry Modal -->
+<div id="timeModalOverlay">
+  <div id="timeModal">
+    <h3>Set Time of Death</h3>
+    <input type="text" id="timeInputText" placeholder="HH:MM or HH:MM:SS">
+    <div class="btn-group">
+      <button id="btnSetTime">Set ToD</button>
+      <button id="btnCancelTime">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
-const nms = ["Byakko", "Genbu", "Seiryu", "Suzaku"];
-const respawnHours = 3;
+const nms = [
+  { name: "Despot", type: "cooldownOnly" },
+  { name: "Steam Cleaner", type: "cooldownOnly" },
+  { name: "Zipacna", type: "cooldownPlusLottery" },
+  { name: "Mother Globe", type: "cooldownPlusLottery" },
+  { name: "Faust", type: "cooldownPlusLottery" },
+  { name: "Curtana", type: "cooldownPlusLottery" }
+];
 
-function createTimer(name) {
-    const container = document.createElement("div");
-    container.className = "timer";
+let nmData = {};
+let editingNM = null; // Which NM is being edited in popup
 
-    const label = document.createElement("div");
-    label.textContent = name;
-
-    const timeDisplay = document.createElement("div");
-    timeDisplay.className = "time";
-    timeDisplay.textContent = "--:--:--";
-
-    const controls = document.createElement("div");
-    controls.className = "controls";
-
-    const calendarBtn = document.createElement("button");
-    calendarBtn.innerHTML = "📅";
-    calendarBtn.className = "calendar-btn";
-    calendarBtn.onclick = () => {
-        const dateInput = document.createElement("input");
-        dateInput.type = "datetime-local";
-        dateInput.onchange = () => {
-            setTimer(name, new Date(dateInput.value));
-            document.body.removeChild(dateInput);
-        };
-        dateInput.style.position = "absolute";
-        dateInput.style.left = "-9999px";
-        document.body.appendChild(dateInput);
-        dateInput.click();
-    };
-
-    const addBtn = document.createElement("button");
-    addBtn.textContent = "+";
-    addBtn.className = "add-btn";
-    addBtn.onclick = () => setTimer(name, new Date());
-
-    const resetBtn = document.createElement("button");
-    resetBtn.innerHTML = "⟳";
-    resetBtn.className = "reset-btn";
-    resetBtn.onclick = () => resetTimer(name);
-
-    controls.appendChild(calendarBtn);
-    controls.appendChild(addBtn);
-    controls.appendChild(resetBtn);
-
-    container.appendChild(label);
-    container.appendChild(timeDisplay);
-    container.appendChild(controls);
-
-    document.getElementById("timers").appendChild(container);
-
-    return { name, timeDisplay, endTime: null };
+function saveData() {
+  localStorage.setItem("nmTrackerData", JSON.stringify(nmData));
 }
 
-const timers = nms.map(createTimer);
-
-function setTimer(name, startTime) {
-    const timer = timers.find(t => t.name === name);
-    timer.endTime = new Date(startTime.getTime() + respawnHours * 60 * 60 * 1000);
+function loadData() {
+  const stored = localStorage.getItem("nmTrackerData");
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      for (let key in parsed) {
+        if (parsed[key].tod) {
+          parsed[key].tod = new Date(parsed[key].tod);
+        }
+      }
+      nmData = parsed;
+    } catch (e) {
+      console.error("Failed to load saved data:", e);
+    }
+  }
 }
 
-function resetTimer(name) {
-    const timer = timers.find(t => t.name === name);
-    timer.endTime = null;
-    timer.timeDisplay.textContent = "--:--:--";
+function resetTimer(nmName) {
+  if (!nmData[nmName]) return;
+  nmData[nmName].tod = null;
+  nmData[nmName].windowAlerted = false;
+  saveData();
+  // Update UI immediately
+  document.getElementById(`countdown-${nmName}`).textContent = "--";
+  document.getElementById(`next-${nmName}`).textContent = "--";
+  document.getElementById(`card-${nmName}`).style.backgroundColor = "#222";
+}
+
+function createCard(nm) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.id = `card-${nm.name}`;
+  card.innerHTML = `
+    <h2>${nm.name}</h2>
+    <p class="countdown" id="countdown-${nm.name}">--</p>
+    <p id="next-${nm.name}">--</p>
+    <div class="controls">
+      <button class="icon-btn" title="Set Time of Death" onclick="openTimePopup('${nm.name}')">🕒</button>
+      <button onclick="setToDNow('${nm.name}')" title="Set ToD Now">Now</button>
+      <button onclick="resetTimer('${nm.name}')" title="Reset Timer">⟲</button>
+      <button onclick="toggleSound('${nm.name}')" title="Toggle Alert Sound">${nmData[nm.name]?.alerts ? "🔊" : "🔇"}</button>
+    </div>
+  `;
+  return card;
+}
+
+function openTimePopup(nmName) {
+  editingNM = nmName;
+  const tod = nmData[nmName]?.tod;
+  const input = document.getElementById("timeInputText");
+  if (tod instanceof Date && !isNaN(tod)) {
+    const hh = tod.getHours().toString().padStart(2, "0");
+    const mm = tod.getMinutes().toString().padStart(2, "0");
+    const ss = tod.getSeconds().toString().padStart(2, "0");
+    input.value = `${hh}:${mm}:${ss}`;
+  } else {
+    input.value = "";
+  }
+  document.getElementById("timeModalOverlay").style.display = "flex";
+  input.focus();
+}
+
+function closeTimePopup() {
+  document.getElementById("timeModalOverlay").style.display = "none";
+  editingNM = null;
+}
+
+function setToDNow(nmName) {
+  const now = new Date();
+  nmData[nmName].tod = now;
+  nmData[nmName].windowAlerted = false;
+  saveData();
+}
+
+function toggleSound(nmName) {
+  nmData[nmName].alerts = !nmData[nmName].alerts;
+  document.querySelector(`#card-${nmName} button:last-child`).textContent = nmData[nmName].alerts ? "🔊" : "🔇";
+  saveData();
+}
+
+function setToDFromPopup() {
+  if (!editingNM) return;
+
+  const input = document.getElementById("timeInputText").value.trim();
+  const regex = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/; // Matches HH:MM or HH:MM:SS
+  const match = input.match(regex);
+
+  if (!match) {
+    alert("Please enter time in HH:MM or HH:MM:SS format.");
+    return;
+  }
+
+  let hh = Number(match[1]);
+  let mm = Number(match[2]);
+  let ss = match[3] !== undefined ? Number(match[3]) : 0;
+
+  if (
+    hh < 0 || hh > 23 ||
+    mm < 0 || mm > 59 ||
+    ss < 0 || ss > 59
+  ) {
+    alert("Invalid time values. Hours: 0-23, Minutes/Seconds: 0-59.");
+    return;
+  }
+
+  const now = new Date();
+  const tod = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, ss);
+
+  nmData[editingNM].tod = tod;
+  nmData[editingNM].windowAlerted = false;
+  saveData();
+  closeTimePopup();
+}
+
+function calculateNMWindow(tod, type) {
+  const results = {};
+  if (type === "cooldownOnly") {
+    let nextSpawn = new Date(tod.getTime() + (2 * 60 * 60 * 1000));
+    results.possibleSpawns = [nextSpawn];
+    results.windowStart = nextSpawn;
+    results.windowEnd = nextSpawn;
+  }
+  if (type === "cooldownPlusLottery") {
+    let windowStart = new Date(tod.getTime() + (2 * 60 * 60 * 1000));
+    let windowEnd = new Date(tod.getTime() + (3 * 60 * 60 * 1000));
+    let spawns = [];
+    for (let i = 0; i <= 6; i++) {
+      spawns.push(new Date(windowStart.getTime() + (i * 10 * 60 * 1000)));
+    }
+    results.possibleSpawns = spawns;
+    results.windowStart = windowStart;
+    results.windowEnd = windowEnd;
+  }
+  return results;
 }
 
 function updateTimers() {
-    const now = new Date();
-    timers.forEach(timer => {
-        if (timer.endTime) {
-            const diff = timer.endTime - now;
-            if (diff <= 0) {
-                timer.timeDisplay.textContent = "Respawn!";
-                timer.endTime = null;
-            } else {
-                const hours = String(Math.floor(diff / 3600000)).padStart(2, "0");
-                const minutes = String(Math.floor((diff % 3600000) / 60000)).padStart(2, "0");
-                const seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, "0");
-                timer.timeDisplay.textContent = `${hours}:${minutes}:${seconds}`;
-            }
-        }
-    });
+  const now = new Date();
+  nms.forEach(nm => {
+    const data = nmData[nm.name];
+    const cardElem = document.getElementById(`card-${nm.name}`);
+    const cdElem = document.getElementById("countdown-" + nm.name);
+    const nextElem = document.getElementById("next-" + nm.name);
+
+    if (!data?.tod) {
+      // Reset UI if no ToD set
+      cdElem.textContent = "--";
+      nextElem.textContent = "--";
+      cardElem.style.backgroundColor = "#222";
+      return;
+    }
+
+    const results = calculateNMWindow(data.tod, nm.type);
+    let nextSpawn = results.possibleSpawns.find(spawn => spawn > now) || results.possibleSpawns[results.possibleSpawns.length - 1];
+    let diff = Math.floor((nextSpawn - now) / 1000);
+
+    /*
+      Color logic:
+      - Before windowStart: cooldown gray (#333)
+      - Near window (between windowStart and windowEnd): orange (#cc8400)
+      - Inside window: green (#004d00)
+      - After windowEnd and no new ToD: red (#800000)
+    */
+
+    if (now < results.windowStart) {
+      cardElem.style.backgroundColor = "#333"; // cooldown gray
+    } else if (now >= results.windowStart && now < results.windowEnd) {
+      // Near window — orange
+      cardElem.style.backgroundColor = "#cc8400";
+      if (data.alerts && !data.windowAlerted) {
+        document.getElementById("alertSound").play();
+        data.windowAlerted = true;
+        saveData();
+      }
+    } else if (now >= results.windowEnd && now <= new Date(results.windowEnd.getTime() + 30 * 60 * 1000)) {
+      // Inside extended window (extra 30 min for grace) — green
+      cardElem.style.backgroundColor = "#004d00";
+    } else {
+      // After window passed and no ToD update — red
+      cardElem.style.backgroundColor = "#800000";
+    }
+
+    if (diff > 0) {
+      let h = Math.floor(diff / 3600);
+      let m = Math.floor((diff % 3600) / 60);
+      let s = diff % 60;
+      cdElem.textContent = `${h}H ${m}M ${s}S`;
+    } else {
+      cdElem.textContent = "SPAWN CHECK!";
+    }
+    nextElem.textContent = `Next: ${nextSpawn.toLocaleTimeString()}`;
+  });
 }
 
-setInterval(updateTimers, 1000);
+function init() {
+  loadData();
+  const grid = document.getElementById("nmGrid");
+  nms.forEach(nm => {
+    if (!nmData[nm.name]) {
+      nmData[nm.name] = { tod: null, alerts: false, windowAlerted: false };
+    }
+    grid.appendChild(createCard(nm));
+  });
+  setInterval(updateTimers, 1000);
+}
+
+// Event listeners for modal buttons
+document.getElementById("btnSetTime").addEventListener("click", setToDFromPopup);
+document.getElementById("btnCancelTime").addEventListener("click", closeTimePopup);
+
+// Close modal if clicking outside of it
+document.getElementById("timeModalOverlay").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) {
+    closeTimePopup();
+  }
+});
+
+init();
 </script>
 
 </body>
